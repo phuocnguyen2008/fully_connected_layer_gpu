@@ -1,0 +1,27 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "cppbuild",
+			"label": "C/C++: g++ build active file",
+			"command": "/usr/bin/g++",
+			"args": [
+				"-g",
+				"/home/bpn/AI/pytorch/fully-connected-layer/fc_layer.cpp",
+				"-o",
+				"/home/bpn/AI/pytorch/fully-connected-layer/fc_layer"
+			],
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"problemMatcher": [
+				"$gcc"
+			],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"detail": "compiler: /usr/bin/g++"
+		}
+	]
+}

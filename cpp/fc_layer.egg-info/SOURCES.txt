@@ -1,0 +1,7 @@
+README.md
+fc_layer.cpp
+setup.py
+fc_layer.egg-info/PKG-INFO
+fc_layer.egg-info/SOURCES.txt
+fc_layer.egg-info/dependency_links.txt
+fc_layer.egg-info/top_level.txt
