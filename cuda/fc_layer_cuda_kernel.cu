@@ -14,65 +14,76 @@
 
 */
 
-__global__ void FullyConnectedLayerForward_kernel(
-	torch::Tensor A,
-	torch::Tensor W,
-	torch::Tensor b,
-	torch::Tensor Z) {
+namespace {
+	template <typename scalar_t>
+	__device__ __forceinline__ scalar_t matmul(scalar_t A[N][D], // Input
+											   scalar_t W[D][M], // Weights
+											   scalar_t b[N][M], // Bias
+											   scalar_t alpha, // A*W
+											   scalar_t beta) { // bias
+		auto Cvalue = 0;
+		auto C[][] = 0;
+		auto row = blockIdx.y * blockDim.y + threadIdx.y; // j
+		auto col = blockIdx.x * blockDim.x + threadIdx.x; // i
+		for (auto e = 0; e < A.width; ++e)
+			Cvalue += A.elements[row * A.width + e]
+					* W.elements[e * W.width + col];
+		C.elements[row * C.width + col] = Cvalue; // Input * weights
+		if (col < N && row < N)
+			return (alpha * C[col][row] + beta * b[col][row]); // D: bias
+	}
 
-	int row = blockIdx.y * blockDim.y + threadIdx.y;
-	int col = blockIdx.x * blockDim.x + threadIdx.x;
-
-	int Z_x_dim = A.size(1);
-	int Z_y_dim = W.size(2);
-
-	auto Z_value = torch::zeros_like(Z);
-
-	if (row < Z_y_dim && col < Z_x_dim) {
-		for (int i = 0; i < W.size(1); i++) {
-			Z_value += W[row * W.size(1) + i] * A[i * Z_x_dim + col];
+	template <typename scalar_t>
+	__device__ __forceinline__ scalar_t transpose(scalar_t A[N][M]) {
+		auto Cvalue = 0;
+		auto C[][] = 0;
+		auto row = blockIdx.y * blockDim.y + threadIdx.y; // y
+		auto col = blockIdx.x * blockDim.x + threadIdx.x; // x
+		
+		if (col < N && row < N) {
+			auto index_in = col + N * row;
+			auto index_out = row + N * col;
+			return C[index_out] = A[index_in];
 		}
-		Z[row * Z_x_dim + col] = Z_value + b[row];
+	}
+
+	template <typename scalar_t>
+	__device__ __forceinline__ rowSum(scalar_t A[R][C]) {
+
+		int rowIdx = threadIdx.x + blockIdx.x * blockDim.x;
+	
+		if (rowIdx < R) {
+			float sum=0;
+			for (int k = 0 ; k < C ; k++)
+				sum += m[rowIdx * C + k];
+			s[rowIdx] = sum;            
+		}
+	
+	}
+
+	template <typename scalar_t>
+	__global__ void FullyConnectedLayerForward_kernel(
+		torch::Tensor A,
+		torch::Tensor W,
+		torch::Tensor b
+		torch::Tensor Z) {
+			Z = matmul(A, W, b, 1, 1);
+	}
+
+	__global__ void FullyConnectedLayerBackward_kernel(
+		torch::Tensor A,
+		torch::Tensor W,
+		torch::Tensor b,
+		torch::Tensor dZ,
+		torch::Tensor dA,
+		torch::Tensor dW,
+		torch::Tensor db) {
+			dA = matmul(transpose(W), dZ, A, 1, 0);
+			dW = matmul(dZ, A, W, 1, 0);
+			db = rowSum(dZ);
 	}
 }
 
-__global__ void FullyConnectedLayerBackward_kernel(
-	torch::Tensor A,
-	torch::Tensor W,
-	torch::Tensor b,
-	torch::Tensor dZ,
-	torch::Tensor dA,
-	torch::Tensor dW,
-	torch::Tensor db) {
-
-	int col = blockIdx.x * blockDim.x + threadIdx.x;
-	int row = blockIdx.y * blockDim.y + threadIdx.y;
-
-	// W is treated as transposed
-	int dA_x_dim = dZ.size(1);
-	int dA_y_dim = dW.size(1);
-
-	auto dA_value = torch::zeros_like(dA);
-	auto dW_value = torch::zeros_like(dW);
-
-	if (row < dA_y_dim && col < dA_x_dim) {
-		for (int i = 0; i < W.size(2); i++) {
-			dA_value += W[i * W.size(1) + row] * dZ[i * dZ.size(1) + col];
-		}
-		dA[row * dA_x_dim + col] = dA_value;
-	}
-	if (row < W.size(2) && col < W.size(1)) {
-		for (int i = 0; i < dZ.size(1); i++) {
-			dW_value += dZ[row * dZ.size(1) + i] * A[col * dA_x_dim + i];
-		}
-		dW[row * W.size(1) + col] = dW_value;
-	}
-	if (col < dZ.size(1) * dZ.size(2)) {
-		int dZ_x = col % dZ.size(1);
-		int dZ_y = col / dZ.size(1);
-		db[col * dZ.size(2) + row] += dZ[dZ_y * dZ.size(1) + dZ_x];
-	}
-}
 
 std::vector<torch::Tensor> fc_layer_cuda_forward(
     torch::Tensor A,
@@ -84,12 +95,7 @@ std::vector<torch::Tensor> fc_layer_cuda_forward(
 		const auto state_size = A.size(1);
 		const dim3 blocks((state_size + threads - 1) / threads, batch_size);
 		
-		FullyConnectedLayerForward_kernel<<<blocks, threads>>>(
-			A,
-			W,
-			b,
-			Z
-		);
+		FullyConnectedLayerForward_kernel<<<blocks, threads>>>(A, W, b, Z)
 		return {Z, A, W, b};
 	}
 
@@ -106,14 +112,6 @@ std::vector<torch::Tensor> fc_layer_cuda_backward(
 		const auto state_size = A.size(1);
 		const dim3 blocks((state_size + threads - 1) / threads, batch_size);
 		
-		FullyConnectedLayerBackward_kernel<<<blocks, threads>>>(
-			A,
-			W,
-			b,
-			dZ,
-			dA,
-			dW,
-			db
-		);
+		FullyConnectedLayerBackward_kernel<<<blocks, threads>>>(A, W, b, dZ, dA, dW, db)
 		return {dA, dW, db};
 	}
