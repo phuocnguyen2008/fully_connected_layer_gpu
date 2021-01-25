@@ -26,7 +26,7 @@ __global__ void FullyConnectedLayerForward_kernel(
 	int Z_x_dim = A.size(1);
 	int Z_y_dim = W.size(2);
 
-	torch::Tensor Z_value = 0;
+	auto Z_value = torch::zeros_like(Z);
 
 	if (row < Z_y_dim && col < Z_x_dim) {
 		for (int i = 0; i < W.size(1); i++) {
@@ -52,8 +52,8 @@ __global__ void FullyConnectedLayerBackward_kernel(
 	int dA_x_dim = dZ.size(1);
 	int dA_y_dim = dW.size(1);
 
-	torch::Tensor dA_value = 0;
-	torch::Tensor dW_value = 0;
+	auto dA_value = torch::zeros_like(dA);
+	auto dW_value = torch::zeros_like(dW);
 
 	if (row < dA_y_dim && col < dA_x_dim) {
 		for (int i = 0; i < W.size(2); i++) {
