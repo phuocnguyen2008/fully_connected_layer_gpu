@@ -19,7 +19,8 @@ std::vector<at::Tensor> fc_layer_cuda_backward(
 std::vector<torch::Tensor> fc_layer_forward(
     torch::Tensor A,
     torch::Tensor W,
-    torch::Tensor b) {
+    torch::Tensor b,
+    torch::Tensor Z) {
     return fc_layer_cuda_forward(Z, A, W, b);
 }
 
