@@ -17,7 +17,7 @@
 __global__ void FullyConnectedLayerForward_kernel(
 	torch::Tensor A,
 	torch::Tensor W,
-	torch::Tensor b
+	torch::Tensor b,
 	torch::Tensor Z) {
 
 	int row = blockIdx.y * blockDim.y + threadIdx.y;
@@ -26,7 +26,7 @@ __global__ void FullyConnectedLayerForward_kernel(
 	int Z_x_dim = A.size(1);
 	int Z_y_dim = W.size(2);
 
-	float Z_value = 0;
+	torch::Tensor Z_value = 0;
 
 	if (row < Z_y_dim && col < Z_x_dim) {
 		for (int i = 0; i < W.size(1); i++) {
@@ -52,7 +52,8 @@ __global__ void FullyConnectedLayerBackward_kernel(
 	int dA_x_dim = dZ.size(1);
 	int dA_y_dim = dW.size(1);
 
-	float dA_value = 0.0f;
+	torch::Tensor dA_value = 0;
+	torch::Tensor dW_value = 0;
 
 	if (row < dA_y_dim && col < dA_x_dim) {
 		for (int i = 0; i < W.size(2); i++) {
@@ -66,7 +67,7 @@ __global__ void FullyConnectedLayerBackward_kernel(
 		}
 		dW[row * W.size(1) + col] = dW_value;
 	}
-	if (col < dZ.size(1) * dZ_y_dim) {
+	if (col < dZ.size(1) * dZ.size(2)) {
 		int dZ_x = index % dZ.size(1);
 		int dZ_y = index / dZ.size(1);
 		db[col * dZ.size(2) + row] += dZ[dZ_y * dZ.size(1) + dZ_x]
@@ -79,6 +80,8 @@ std::vector<torch::Tensor> fc_layer_cuda_forward(
     torch::Tensor b,
     torch::Tensor Z) {
 		const int threads = 1024;
+		const auto batch_size = A.size(0);
+		const auto state_size = A.size(1);
 		const dim3 blocks((state_size + threads - 1) / threads, batch_size);
 		
 		FullyConnectedLayerForward_kernel<<<blocks, threads>>>(
@@ -99,6 +102,8 @@ std::vector<torch::Tensor> fc_layer_cuda_backward(
 	torch::Tensor dW,
 	torch::Tensor db) {
 		const int threads = 1024;
+		const auto batch_size = A.size(0);
+		const auto state_size = A.size(1);
 		const dim3 blocks((state_size + threads - 1) / threads, batch_size);
 		
 		FullyConnectedLayerBackward_kernel<<<blocks, threads>>>(
