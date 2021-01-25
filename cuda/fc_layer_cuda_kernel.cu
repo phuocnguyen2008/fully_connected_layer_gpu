@@ -68,8 +68,8 @@ __global__ void FullyConnectedLayerBackward_kernel(
 		dW[row * W.size(1) + col] = dW_value;
 	}
 	if (col < dZ.size(1) * dZ.size(2)) {
-		int dZ_x = index % dZ.size(1);
-		int dZ_y = index / dZ.size(1);
+		int dZ_x = col % dZ.size(1);
+		int dZ_y = col / dZ.size(1);
 		db[col * dZ.size(2) + row] += dZ[dZ_y * dZ.size(1) + dZ_x]
 	}
 }
