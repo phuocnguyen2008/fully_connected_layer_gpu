@@ -70,7 +70,7 @@ __global__ void FullyConnectedLayerBackward_kernel(
 	if (col < dZ.size(1) * dZ.size(2)) {
 		int dZ_x = col % dZ.size(1);
 		int dZ_y = col / dZ.size(1);
-		db[col * dZ.size(2) + row] += dZ[dZ_y * dZ.size(1) + dZ_x]
+		db[col * dZ.size(2) + row] += dZ[dZ_y * dZ.size(1) + dZ_x];
 	}
 }
 
@@ -89,7 +89,7 @@ std::vector<torch::Tensor> fc_layer_cuda_forward(
 			W,
 			b,
 			Z
-		)
+		);
 		return {Z, A, W, b};
 	}
 
@@ -114,6 +114,6 @@ std::vector<torch::Tensor> fc_layer_cuda_backward(
 			dA,
 			dW,
 			db
-		)
+		);
 		return {dA, dW, db};
 	}
